@@ -1,2 +1,2 @@
 # rbiostatfunbox
-R function box for biostatistics
+R functions box for biostatistics
