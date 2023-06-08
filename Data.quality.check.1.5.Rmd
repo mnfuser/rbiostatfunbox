@@ -1,0 +1,705 @@
+---
+title: 'QC20202005-scovid-dataset.4'
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  pdf_document: 
+    keep_tex: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(comment = NA)
+
+#################################################
+
+### TODO                                      ###
+
+#################################################
+
+# 
+
+#################################################
+
+### Libraries                                 ###
+
+#################################################
+
+
+library(knitr)
+library(naniar)
+library(reshape2)
+library(ggplot2)
+library(ggthemes)
+library(kableExtra)
+library(magrittr)
+library(mvnmle)
+library(BaylorEdPsych)
+library(stringr)
+library(stringi)
+library(visdat)
+
+#################################################
+
+### Functions                                 ###
+
+#################################################
+
+na.cutoff = 1.0
+
+######################
+
+### OPTIONS        ###
+
+######################
+
+WORKINGDIR = "H:/biostatistica/Dati/Giannini/scovid/scovid"
+INFILENAME = "dset.ana.4.1300.csv"
+OFILENAME = gsub(".csv", ".cleaned.csv", INFILENAME)
+
+characterList<-NULL
+dates<-NULL
+factorList<-NULL
+orderedList<-NULL
+numericList<-NULL
+integerList<-NULL
+logicalList<-NULL
+
+CHARENC         = FALSE
+STRINGTRIMMING  = TRUE
+BLANK2NA        = TRUE
+CHAR2FACTOR     = FALSE
+APPLYFACTORS    = FALSE
+APPLYVARTYPE    = TRUE
+
+
+######################
+
+setVarType<-function(fileName){
+  varType<-read.csv2(paste0(getwd(),"/", fileName))
+  characterList<<-which(varType$type=="c")
+  dates<<-which(varType$type=="d")
+  factorList<<-which(varType$type=="f")
+  orderedList<<-which(varType$type=="o")
+  numericList<<-which(varType$type=="n")
+  integerList<<-which(varType$type=="i")
+  logicalList<<-which(varType$type=="l")
+}
+
+do.panel.quant<-function(d,xx,s){
+  if(str_length(s>50)) { s<-substr(s, 0, 50) }
+  if(check.na.limit(d[,xx], FALSE)){
+    quant.var.panel<-as.matrix(cbind(min(d[,xx], na.rm = TRUE), t(quantile(d[,xx],na.rm = TRUE))[2], median(d[,xx], na.rm = TRUE), mean(d[,xx], na.rm = TRUE), sd(d[,xx], na.rm = TRUE),  t(quantile(d[,xx],na.rm = TRUE))[4], max(d[,xx],na.rm = TRUE)))
+  colnames(quant.var.panel)<-c("Min", "Q2", "Median", "Mean", "SD", "Q3", "Max")
+  print(kable(quant.var.panel, "html", longtable = T, booktabs = F, caption=paste0("Variable: ", s))%>%
+    kable_styling(full_width = T, latex_options = c("hold_position")))
+  }
+}
+
+do.plot.quant<-function(d,xx,s){
+  if(check.na.limit(d[,xx], FALSE)){
+    print(ggplot(d, 
+        aes(x=1, y=d[,xx]))+
+        geom_boxplot()+
+        theme(axis.title.x=element_blank(),
+              axis.title.y = element_text(size=8),
+              axis.text.x=element_blank(),
+              axis.ticks.x =element_blank(),
+              panel.border = element_blank(),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.background = element_rect(fill = "grey98"),
+              plot.background = element_rect(fill = "lightblue"))+
+        labs(y = s))
+    return(1)
+  } else return(0)
+}
+
+do.panel.qual<-function(d,xx,s){
+  if(str_length(s>50)) { s<-substr(s, 0, 50) }
+  if(check.na.limit(d[,xx], FALSE)){
+    qual.var.panel<-as.data.frame(table(d[,xx]))
+    percent<-qual.var.panel[,2]/sum(qual.var.panel[,2])
+    qual.var.panel<-cbind(qual.var.panel, percent)
+    colnames(qual.var.panel)<-c("Levels", "Counts", "%")
+    print(kable(qual.var.panel, "html", longtable = T, booktabs = T, caption=paste0("Variable: ", s))%>%
+    kable_styling(full_width = T, latex_options = c("repeat_header", "hold_position"))%>%
+      column_spec(1, width = "8cm"))
+  }
+}
+
+do.plot.qual<-function(d,xx,s){
+  if(check.na.limit(d[,xx], FALSE)){
+    
+    if(length(levels(as.factor(xx)))<=6){
+      scaledLabels<-c(1:length(levels(as.factor(d[,xx]))))
+    } else {
+      scaledLabels<-""
+    }
+    
+    print(ggplot(data=subset(d, !is.na(d[,xx])), aes(na.omit(d[,xx])))+
+        geom_bar()+
+        theme(axis.title.x=element_text(size=8),
+              axis.title.y = element_text(size=8),
+              axis.text.x=element_blank(),
+              axis.ticks.x =element_blank(),
+              panel.border = element_blank(),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.background = element_rect(fill = "grey98"),
+              plot.background = element_rect(fill = "lightblue"))+
+              #scale_x_discrete(labels=scaledLabels) +
+              labs(y = s, x="Levels"))
+    return(1)  
+    } else return(0)
+}
+
+check.var.type<-function(d,x,s,p){
+  r=0
+  if(class(d[,x])=="integer" || class(d[,x])=="numeric") {
+    if(p==FALSE) {do.panel.quant(d,x,s)}
+    else {
+      r=r+do.plot.quant(d,x,s)} 
+  }
+  else {
+    if(p==FALSE) {do.panel.qual(d,x,s)}
+    else {
+      r=r+do.plot.qual(d,x,s)  
+    }
+  } 
+  return(r)
+}
+
+check.na.limit<-function(x, s){
+  v = round(length(which(is.na(x)))/length(x), 3)
+  if(s==TRUE) print(v+"\n")
+  if(v<=na.cutoff) return (TRUE)
+  else return (FALSE)
+}
+
+# String encoding
+encToUTF8<-function(x){
+  if(class(x)=="character") {
+    x<-stri_enc_toutf8(x, is_unknown_8bit = TRUE, validate = TRUE)
+  }
+  return(x)
+}
+
+# String trimming
+trimStrings<-function(x){
+  if(class(x)=="character") {
+    x<-str_trim(x)
+  }
+  return(x)
+}
+
+# char to factor conversion
+convertCharToFactor<-function(x, c){
+  if(class(x)=="character") {
+    x<-as.factor(x)
+  }
+  return(x)  
+}
+
+# blank to NA conversion
+convertBlankToNA<-function(x){
+  if(class(x)=="character") {
+    x<-gsub("^$", NA, x)
+  }
+  return(x)
+}
+
+applyCharacter<-function(x, c){
+  if(missing(c)){
+    return(x)
+  } else {
+    for(i in 1:length(c)){
+      x[,c[i]]<-as.character(x[,c[i]])  
+    }  
+  }
+  return(x)
+}
+
+applyFactors<-function(x, c){
+  if(missing(c)){
+    return(x)
+  } else {
+    for(i in 1:length(c)){
+      x[,c[i]]<-as.factor(x[,c[i]])  
+    }  
+  }
+  return(x)
+}
+
+applyOrdered<-function(x, c){
+  if(missing(c)){
+    return(x)
+  } else {
+    for(i in 1:length(c)){
+      x[,c[i]]<-as.ordered(x[,c[i]])  
+    }  
+  }
+  return(x)
+}
+
+applyNumeric<-function(x, c){
+  if(missing(c)){
+    return(x)
+  } else {
+    for(i in 1:length(c)){
+      x[,c[i]]<-as.numeric(x[,c[i]])  
+    }  
+  }
+  return(x)
+}
+
+applyInteger<-function(x, c){
+  if(missing(c)){
+    return(x)
+  } else {
+    for(i in 1:length(c)){
+      x[,c[i]]<-as.integer(x[,c[i]])  
+    }  
+  }
+  return(x)
+}
+
+applyLogical<-function(x, c){
+  if(missing(c)){
+    return(x)
+  } else {
+    for(i in 1:length(c)){
+      x[,c[i]]<-as.logical(x[,c[i]])  
+    }  
+  }
+  return(x)
+}
+
+applyDate<-function(x, c, f){
+  # f=format
+  # f="%d/%m/%Y", f="%Y-%m-%d"
+  if(missing(c)){
+    return(x)
+  } else {
+    for(i in 1:length(c)){
+      #x[,c[i]]<-as.Date(x[,c[i]], "%d/%m/%Y")
+      x[,c[i]]<-as.Date(x[,c[i]], f)
+    }  
+  }
+  return(x)
+}
+
+findLongFactor<-function(x){
+  return(names(which(sapply(sapply(x[,sapply(x, is.factor)], levels), length)>30)))
+}
+
+is.Date <- function(x) inherits(x, 'Date')
+
+findDates<-function(x){
+  return(names(which(sapply(x, is.Date))))
+}
+
+sanitizeColNames<-function(d){
+  colnames(d)<-gsub("_", ".", colnames(d))
+  for(i in 1:length(colnames(d))){
+    if(str_length(colnames(d)[i])>50){
+      colnames(d)[i]<-paste0(substr(colnames(d)[i], 0, 50),"[...]")
+    }
+  }
+  return(d)
+}
+
+```
+
+# Data quality report
+  
+**Document ID:** QC20202005-scovid-dataset.4.1300.paz-QC
+  
+**Date:** `r format(Sys.time(), '%d/%m/%Y')`  
+  
+---
+  
+```{r}
+#################################################
+
+### Load dataset                              ###
+
+#################################################
+
+setwd(WORKINGDIR)
+
+dset.import<-read.csv2(paste0(getwd(), "/", INFILENAME), stringsAsFactors = FALSE)
+setVarType("vartype.dset.ana.4.1300.csv")
+
+```
+  
+# Description  
+
+
+**Dataset**
+
+--- File name: `r INFILENAME`
+  
+--- Cases: `r dim(dset.import)[1]`
+  
+--- Variables: `r dim(dset.import)[2]`
+  
+
+# Results
+
+## Quality check
+
+```{r tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+
+# Column names sanitization
+dset.import<-sanitizeColNames(dset.import)
+cat("--- Column names sanitization: **Done**")
+```
+  
+```{r tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+if(CHARENC==TRUE){
+  # String encoding
+  for(i in 1:dim(dset.import)[2]){
+    dset.import[,i]<-encToUTF8(dset.import[,i])
+  } 
+  cat("--- Charcters encoding: **Done**") 
+} else {
+    cat("--- Charcters encoding: **Skipped**")
+}
+
+```
+  
+```{r tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+if(STRINGTRIMMING == TRUE){
+  # String trimming
+  for(i in 1:dim(dset.import)[2]){
+    dset.import[,i]<-trimStrings(dset.import[,i])
+  }  
+  cat("--- String trimming: **Done**")
+} else {
+    cat("--- String trimming: **Skipped**")
+  } 
+```
+  
+```{r tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+if(BLANK2NA == TRUE){
+  # blank to NA conversion
+  for(i in 1:dim(dset.import)[2]){
+    dset.import[,i]<-convertBlankToNA(dset.import[,i])
+  }    
+  cat("--- Blank to NA conversion: **Done**")
+} else {
+    cat("--- Blank to NA conversion: **Skipped**")
+  } 
+```
+  
+```{r tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+if(CHAR2FACTOR == TRUE){
+  # char to factor conversion
+  for(i in 1:dim(dset.import)[2]){
+    dset.import[,i]<-convertCharToFactor(dset.import[,i])
+  }
+  cat("--- Character to factor conversion: **Done**")
+} else {
+    cat("--- Character to factor conversion: **Skipped**")
+  }
+```
+
+```{r tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+if(APPLYFACTORS == TRUE){
+  if(length(factorList>0)){
+    #apply factors to columns
+    dset.import<-applyFactors(dset.import, factorList)  
+    cat("--- Apply factors: **Done**")
+    cat("\n\n")
+  } else {
+    cat("Factors list is empty")
+    cat("--- Apply factors: **Skipped**")
+    cat("\n\n")
+  }
+} else {
+    cat("--- Apply factors: **Skipped**")
+    cat("\n\n")
+  }
+```
+
+```{r tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60), warning=FALSE}
+if(APPLYVARTYPE == TRUE){
+  
+  cat("--- Apply var types to dataset..")
+  cat("\n\n")
+  
+  # CHAR
+  
+  if(length(characterList>0)){
+    dset.import<-applyCharacter(dset.import, characterList)  
+    cat("--- Apply char types: **Done**")
+    cat("\n\n")
+  } else {
+    cat("Character list is empty")
+    cat("\n\n")
+    cat("--- Apply character: **Skipped**")
+    cat("\n\n")
+  }
+  
+  # FACTOR
+  
+  if(length(factorList>0)){
+    dset.import<-applyFactors(dset.import, factorList)  
+    cat("--- Apply factor types: **Done**")
+    cat("\n\n")
+  } else {
+    cat("Factors list is empty")
+    cat("\n\n")
+    cat("--- Apply factors: **Skipped**")
+    cat("\n\n")
+  }
+  
+  # ORDERED
+  
+  if(length(orderedList>0)){
+    dset.import<-applyOrdered(dset.import, orderedList)  
+    cat("--- Apply ordered types: **Done**")
+    cat("\n\n")
+  } else {
+    cat("Ordered list is empty")
+    cat("\n\n")
+    cat("--- Apply ordered: **Skipped**")
+    cat("\n\n")
+  }
+  
+  # NUMERIC
+  
+  if(length(numericList>0)){
+    dset.import<-applyNumeric(dset.import, numericList)  
+    cat("--- Apply numeric types: **Done**")
+    cat("\n\n")
+  } else {
+    cat("Numeric list is empty")
+    cat("\n\n")
+    cat("--- Apply numeric: **Skipped**")
+    cat("\n\n")
+  }
+  
+  # INTEGER
+  
+  if(length(integerList>0)){
+    dset.import<-applyInteger(dset.import, integerList)  
+    cat("--- Apply integer types: **Done**")
+    cat("\n\n")
+  } else {
+    cat("Integer list is empty")
+    cat("\n\n")
+    cat("--- Apply integer: **Skipped**")
+    cat("\n\n")
+  }
+  
+  # LOGICAL
+  
+  if(length(logicalList>0)){
+    dset.import<-applyLogical(dset.import, logicalList)  
+    cat("--- Apply logical types: **Done**")
+    cat("\n\n")
+  } else {
+    cat("Logical list is empty")
+    cat("\n\n")
+    cat("--- Apply logical: **Skipped**")
+    cat("\n\n")
+  }
+  
+  # DATE
+  
+  if(length(dates>0)){
+    dset.import<-applyDate(dset.import, dates, "%Y-%m-%d")  
+    cat("--- Apply date types: **Done**")
+    cat("\n\n")
+  } else {
+    cat("Date list is empty")
+    cat("\n\n")
+    cat("--- Apply date: **Skipped**")
+    cat("\n\n")
+  }
+  
+} else {
+    cat("--- Apply var types: **Skipped**")
+    cat("\n\n")
+  }
+```  
+
+```{r tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60), warning = FALSE}
+vis_dat(dset.import, sort_type = FALSE, warn_large_data = FALSE)+
+  theme(axis.title.x=element_text(size=10),
+        axis.title.y = element_text(size=10),
+        axis.text.x=element_blank()
+  )+xlab("Variables")+
+  ggtitle("Post processing var types")
+```
+
+```{r tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+# NA check
+na.mat<-as.matrix(sapply(dset.import,function(x) sum(is.na(x))))
+na.type<-as.matrix(sapply(dset.import,function(x) class(x)))
+na.pc<-as.matrix(sapply(dset.import,function(x) round(length(which(is.na(x)))/length(x), 3)))
+na.mat<-data.frame(na.mat, na.pc, na.type)
+colnames(na.mat)<-c("NA Counts", "Missingness ratio", "Type")
+```
+  
+--- NA counting: **Done**
+  
+--- Total missing values: `r sum(na.mat[,1])` (`r round(sum(na.mat[,1])/(dim(dset.import)[1]*dim(dset.import)[2])*100,3)`%)
+
+--- Number of variables with more than `r na.cutoff*100`% missing values: `r length(which(na.mat[,2]>na.cutoff))`
+
+--- MCAR test: `r if(dim(dset.import)[1]<=50) {LittleMCAR(dset.import)} else {cat("Number of variables > 50, test can not be performed.")}`
+
+```{r fig.align="center", tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60), warning=FALSE}
+vis_miss(dset.import)+
+  ggtitle("NA counts") +
+  theme(axis.title.x=element_text(size=10),
+              axis.title.y = element_text(size=10),
+              axis.text.x=element_blank()
+        )+xlab("Variables")
+```
+
+```{r results='asis', comment=NA, tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+kable(na.mat, caption = "NA Counts", booktabs = T, longtable = T)%>%
+  kable_styling(full_width = T, latex_options = c("striped", "hold_position", "repeat_header"))%>%
+  column_spec(1, width = "8cm")
+```
+
+```{r results='asis', comment=NA, tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+kable(na.mat[which(na.mat[,2]>na.cutoff),], "latex", caption = "Variables with missingness above cut off", booktabs = T, longtable = T)%>%
+  kable_styling(full_width = T, latex_options = c("striped", "hold_position", "repeat_header"))%>%
+  column_spec(1, width = "8cm")
+```
+
+```{r}
+na.mat<-na.mat[which(na.mat[,2]<=na.cutoff),]
+rn<-rownames(na.mat[which(na.mat[,2] <= na.cutoff),])
+rn<-c(rn, rownames(na.mat[which(na.mat[,3]=="Date"),]))
+dset.na.cleaned<-dset.import[, (names(dset.import) %in% rn)]
+write.table(dset.na.cleaned, paste0(getwd(), "/",OFILENAME), sep=";", dec=",", row.names = FALSE, col.names = TRUE, quote = TRUE, na="NA")
+```
+
+--- Number of variables retained for downstream anlysis: `r dim(na.mat)[1]`
+  
+--- Numeric variables: `r length(which(na.mat[,3]=="numeric"))`  
+  
+--- Integer variables: `r length(which(na.mat[,3]=="integer"))` 
+  
+--- Factor variables: `r length(which(na.mat[,3]=="factor"))` 
+  
+--- Ordered variables: `r length(which(na.mat[,3]=="ordered"))`  
+  
+--- Character variables: `r length(which(na.mat[,3]=="character"))`
+  
+--- Logical variables: `r length(which(na.mat[,3]=="logical"))`
+  
+**Cleaned dataset:** `r OFILENAME`
+
+```{r results='asis', comment=NA, tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+kable(na.mat[which(na.mat[,2]<=na.cutoff),], "latex", caption = "Variables retained", booktabs = T, longtable = T)%>%
+  kable_styling(full_width = T, latex_options = c("striped", "hold_position", "repeat_header"))%>%
+  column_spec(1, width = "8cm")
+```
+
+```{r fig.align="center", fig.height=14, fig.width=8, tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60), warning=FALSE}
+gg_miss_var(dset.na.cleaned)+
+  ggtitle("NA counts cleaned dataset") +
+  theme(axis.text.y = element_text(size=8))
+```
+
+\newpage
+## Descriptive statistics
+
+```{r results='asis', comment=NA, warning = FALSE, tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+
+toBeRemoved<-which(colnames(dset.na.cleaned) %in% findLongFactor(dset.na.cleaned))
+
+dates<-which(colnames(dset.na.cleaned) %in% findDates(dset.na.cleaned))
+
+if(length(dates)>0){
+  toBeRemoved<-c(toBeRemoved, dates)
+}
+
+if(length(toBeRemoved)>0){
+  dset.print.tables<-dset.na.cleaned[, -toBeRemoved]  
+} else {
+  dset.print.tables<-dset.na.cleaned
+}
+
+cat("Removed from output:\n\n")
+for(i in 1:length(toBeRemoved)){
+  k=toBeRemoved[i]
+  cat(paste0("-", colnames(dset.na.cleaned)[k], "\n\n"))
+}
+cat("\n\n")
+
+for(i in 1:dim(dset.print.tables)[2]){
+  if(dim(dset.print.tables[i])[1]!=0){
+    s=colnames(dset.print.tables)[i]
+    check.var.type(dset.print.tables, i, s, FALSE)  
+  }
+}
+```
+ 
+\newpage
+## Data plots
+
+```{r fig.height=1.7, fig.width=1.7, message=FALSE, warning=FALSE, tidy=TRUE, tidy.opts=list(blank=FALSE, width.cutoff=60)}
+
+toBeRemoved<-which(colnames(dset.na.cleaned) %in% findLongFactor(dset.na.cleaned))
+
+dates<-which(colnames(dset.na.cleaned) %in% findDates(dset.na.cleaned))
+
+if(length(dates)>0){
+  toBeRemoved<-c(toBeRemoved, dates)
+}
+
+if(length(toBeRemoved)>0){
+  dset.print.plots<-dset.na.cleaned[, -toBeRemoved]
+} else {
+  dset.print.plots<-dset.na.cleaned
+}
+
+k=0
+for(i in 1:dim(dset.print.plots)[2]){
+  s=colnames(dset.print.plots)[i]
+  k=k+check.var.type(dset.print.plots, i, s, TRUE)
+  if(k%%4==0){cat("\n\n")}
+}
+```
+
+```{r results='asis', warning = FALSE, tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+
+```
+
+```{r results='asis', warning = FALSE, tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+
+```
+
+```{r results='asis', warning = FALSE, tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 60)}
+par(mfrow=c(2,2))
+
+```
+
+\newpage
+# Session
+
+```{r echo=FALSE}
+sessionInfo()
+```
+
+***
+
+Dr Manfrini M., PhD  
+Biostatistics  
+Research and Innovation support Division  
+  
+Maria Cecilia Hospital  
+Via Corriera, 1 - 48033 Cotignola (RA)  
+Ph: +39 0545 217216
+
+
+
