@@ -1,4 +1,5 @@
-source("/Users/mmanfrini/Analisi/template/codice/funbox.v2.R")
+source("/Users/mmanfrini/Code/rbiostatfunbox/rbiostatfunbox/funbox.R")
+
 library(MASS)
 
 # PATH ----
@@ -74,15 +75,12 @@ if(length(dates)>0){
 # VISUALIZE ANALYSIS DATASET
 vis_dat_wrapper(dset.ana)
 
-# LOGISTIC UNIVAR OSP.NOT TRAIN ----
-
-
+# LOGISTIC UNIVAR ----
 
 regressorList<-nm[which(nm$rg==1), "id"]
 outcomevarindex=nm[which(nm$oc==1), "id"]
 
 logi.univar(dset.ana, outcomevarindex, regressorList, outdir, "logi.AF.univar")
-
 
 # VARIABLE SELECTION ----
 
@@ -289,13 +287,15 @@ write.csv2(multi.3, file=paste0(outdir, "/", "multi.3.csv"), row.names = T)
 #                 , 
 #                 family = binomial(), data = dset.ana.complete)
 
-dset.ana.complete<-dset.ana[complete.cases(dset.ana[, c(1, 16, 28, 38, 111, 122, 162)]), 
-                                                       c(1, 16, 28, 38, 111, 122, 162)]
+dset.ana.complete<-dset.ana[, c(1, 16, 28, 38, 111, 122, 162)]
 
-dset.ana.complete$ipotir_n<-ifelse(dset.ana.complete$Ipotiroidismo=="Yes",1,0)
+cc=complete.cases(dset.ana.complete)
+
+dset.ana.complete<-dset.ana.complete[cc, ]
+                                                       
 
 full.model<-glm(FA ~ Eta
-                + ipotir_n 
+                + Ipotiroidismo 
                 + Splenectomia
                 + Volumetelesistolicoatrialesinistroindicizzatomlm2
                 + Funzionediastolica
@@ -355,7 +355,7 @@ uni.model<-glm(FA ~
 summary(uni.model)
 
 obs=as.numeric(levels(dset.ana.complete$FA))[dset.ana.complete$FA]
-resp=predict(sel.model, type = "response")
+resp=predict(uni.model, type = "response")
 
 robj<-pROC::roc(obs ~ predict(uni.model, type = "response"),
                 plot = T, smooth = F, auc = T, ci = T)
@@ -422,3 +422,19 @@ cp <- cutpointr(dset.ana.complete, Atrialesnspessoregrassoinmm, fFA,
                 method = maximize_metric, metric = sum_sens_spec)
 cp
 plot(cp)
+
+# NOTE: ----
+# rocarea function
+
+
+  id <- is.finite(obs) & is.finite(resp)
+  obs <- obs[id]
+  pred <- resp[id]
+  n1 <- sum(obs)
+  n <- length(obs)
+  A.tilda <- (mean(rank(pred)[obs == 1]) - (n1 + 1)/2)/(n - 
+                                                          n1)
+  stats <- wilcox.test(pred[obs == 1], pred[obs == 0], alternative = "great")
+  return(list(A = A.tilda, n.total = n, n.events = n1, 
+              n.noevents = sum(obs == 0), p.value = stats$p.value))
+
