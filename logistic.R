@@ -1,8 +1,31 @@
+#     LOGISTIC REGRESSION TEMPLATE
+#
+#     GNU GPLv3
+# 
+#     Copyright (C) 2023  Marco Manfrini
+# 
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+# 
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+# 
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+# 
+#     info@manfrinistudio.it
+
 source("/Users/mmanfrini/Code/rbiostatfunbox/rbiostatfunbox/funbox.R")
 
 library(MASS)
+library(readr)
 
 # PATH ----
+# SET WORKING DIR, IN AND OUT PATH
 
 wd<-"/Users/mmanfrini/Analisi/malagu"
 setwd(wd)
@@ -10,282 +33,50 @@ indir=paste0(wd, "/preprocess")
 outdir=paste0(wd,"/out")
 
 # GLOBAL VARS ----
+# SET GLOBAL VARS
 
 RAW=F
 
 colrange=c()
 
 # LOAD DATASET PRE PROCESSED ----
+# LOAD DATASET AND DATA DESCRIPTOR FILE
 
-if(RAW==F){
-  dset.ana <- read.csv2(paste0(indir,"/dset.ana.csv"),
-                        stringsAsFactors=TRUE, strip.white = TRUE, quote = "") #, na.strings = ""
-}
+dset.ana <- read_csv2(paste0(indir,"/dset.ana.csv"))
+spec(dset.ana)
+View(dset.ana)
 
-# Load dataset descriptor file
-nm<-read.csv2(paste0(indir,"/nm.dset.ana.filtered.csv"),
-              stringsAsFactors=T)
+# Load data descriptor file
+ddescr<-read_csv2(paste0(indir,"/ddescr.csv"))
+spec(ddescr)
+View(ddescr)
 
-dset.ana$Funzionediastolica <- factor(dset.ana$Funzionediastolica, levels = c("Normale", 
-                                                                              "Alterata", 
-                                                                              "Nonvalutabile"))
+# LOGISTIC UNIVARIABLE REGRESSION ----
 
-sel<-which(dset.ana$Funzionediastolica=="Nonvalutabile")
-sel
-if(length(sel)==0){
-  dset.ana$Funzionediastolica<-droplevels(dset.ana$Funzionediastolica)
-}
+oFileName="logi.AF.univar"
 
-# SET VAR TYPE ----
+regressorList<-ddescr[which(ddescr$rg==1), "id"]
+outcomevarindex=ddescr[which(ddescrm$oc==1), "id"]
 
-setVarType(paste0(indir, "/nm.dset.ana.filtered.csv"))
-
-
-if(length(numericList)>0){
-  dset.ana <- applyNumeric(dset.ana, numericList)
-} else {
-  print("No numeric vars")
-}
-if(length(integerList)>0){
-  dset.ana <- applyInteger(dset.ana, integerList)
-} else {
-  print("No integer vars")
-}
-if(length(factorList)>0){
-  dset.ana <- applyFactors(dset.ana, factorList)
-} else {
-  print("No factor vars")
-}
-if(length(orderedList)>0){
-  dset.ana <- applyOrdered(dset.ana, orderedList)
-} else {
-  print("No ordered vars")
-}
-if(length(logicalList)>0){
-  dset.ana <- applyLogical(dset.ana, logicalList)
-} else {
-  print("No logical vars")
-}
-if(length(dates)>0){
-  dset.ana <- applyDate(dset.ana, dates, "%d/%m/%Y")
-} else {
-  print("No date vars")
-}
-
-# VISUALIZE ANALYSIS DATASET
-vis_dat_wrapper(dset.ana)
-
-# LOGISTIC UNIVAR ----
-
-regressorList<-nm[which(nm$rg==1), "id"]
-outcomevarindex=nm[which(nm$oc==1), "id"]
-
-logi.univar(dset.ana, outcomevarindex, regressorList, outdir, "logi.AF.univar")
+logi.univar(dset.ana, outcomevarindex, regressorList, outdir, oFileName)
 
 # VARIABLE SELECTION ----
+# SELECTION OF VARIABLE BY NESTED MODELS EVALUATION OF AIC BIC AND LR
 
+## MULTIVARIABLE MODEL ----
 
-
-
-## MODEL 1 ----
-
+# DEPENDENT VARIABLE
+#
+# FA
+#
+# REGRESSORS LIST
+#
 # ETA
 # IPOTIROIDISMO 
-# IPERTENSIONE PLMONARE
 # SPLENECTOMIA, 
 # Volumetelesistolicoatrialesinistroml
 # Funzionediastolica (REF = NORMALE)
 # Atrialesnspessoregrassoinmm
-
-dset.ana.complete<-dset.ana[complete.cases(dset.ana[, c(1, 16, 27, 28, 38, 110, 122, 162)]), 
-                            c(1, 16, 27, 28, 38, 110, 122, 162)]
-
-# MASS
-
-full.model<-glm(FA ~ Eta
-      + Ipotiroidismo 
-      + Ipertensionepolmonare 
-      + Splenectomia
-      + Volumetelesistolicoatrialesinistroml
-      + Funzionediastolica
-      + Atrialesnspessoregrassoinmm
-      , 
-      family = binomial(), data = dset.ana.complete)
-
-sel.model <- full.model %>% stepAIC(trace = FALSE)
-
-summary(sel.model)
-
-confint(sel.model)
-
-# BASE R
-
-sel.model <- step(full.model)
-
-summary(sel.model)
-
-confint(sel.model)
-
-# TABLE
-
-or=(exp(cbind("Odds ratio" = coef(sel.model), confint.default(sel.model))))
-
-multi.1<-data.frame(
-  
-  #names(logi.fit$coefficients),
-  OR=round(or[1:dim(or)[1],1],3),
-  CI95=paste0(round(or[1:dim(or)[1],2],3)," - " ,round(or[1:dim(or)[1],3],3)),
-  p=round(summary(sel.model)$coefficients[1:dim(summary(sel.model)$coefficients)[1],4] , 3)
-  
-)
-
-# OUT
-
-write.csv2(multi.1, file=paste0(outdir, "/", "multi.1.csv"), row.names = T)
-
-
-## MODEL 2 ----
-
-# ETA
-# IPOTIROIDISMO 
-# PAPsmmHg
-# SPLENECTOMIA, 
-# Volumetelesistolicoatrialesinistroml
-# Funzionediastolica (REF = NORMALE)
-# Atrialesnspessoregrassoinmm
-
-dset.ana.complete<-dset.ana[complete.cases(dset.ana[, c(1, 16, 121, 28, 38, 110, 122, 162)]), 
-                            c(1, 16, 121, 28, 38, 110, 122, 162)]
-
-# MASS
-
-full.model<-glm(FA ~ Eta
-                + Ipotiroidismo 
-                + PAPsmmHg 
-                + Splenectomia
-                + Volumetelesistolicoatrialesinistroml
-                + Funzionediastolica
-                + Atrialesnspessoregrassoinmm
-                , 
-                family = binomial(), data = dset.ana.complete)
-
-sel.model <- full.model %>% stepAIC(trace = FALSE)
-
-summary(sel.model)
-
-confint(sel.model)
-
-# BASE R
-
-sel.model <- step(full.model)
-
-summary(sel.model)
-
-confint(sel.model)
-
-# TABLE
-
-or=(exp(cbind("Odds ratio" = coef(sel.model), confint.default(sel.model))))
-
-multi.2<-data.frame(
-  
-  #names(logi.fit$coefficients),
-  OR=round(or[1:dim(or)[1],1],3),
-  CI95=paste0(round(or[1:dim(or)[1],2],3)," - " ,round(or[1:dim(or)[1],3],3)),
-  p=round(summary(sel.model)$coefficients[1:dim(summary(sel.model)$coefficients)[1],4] , 3)
-  
-)
-
-# OUT
-
-write.csv2(multi.2, file=paste0(outdir, "/", "multi.2.csv"), row.names = T)
-
-
-
-## MODEL 3 ----
-
-# ETA
-# IPOTIROIDISMO 
-# IPERTENSIONE PLMONARE
-# SPLENECTOMIA, 
-# Volumetelesistolicoatrialesinistroindicizzatomlm2
-# Funzionediastolica (REF = NORMALE)
-# Atrialesnspessoregrassoinmm
-
-dset.ana.complete<-dset.ana[complete.cases(dset.ana[, c(1, 16, 27, 28, 38, 111, 122, 162)]), 
-                            c(1, 16, 27, 28, 38, 111, 122, 162)]
-
-# MASS
-
-full.model<-glm(FA ~ Eta
-                + Ipotiroidismo 
-                + Ipertensionepolmonare 
-                + Splenectomia
-                + Volumetelesistolicoatrialesinistroindicizzatomlm2
-                + Funzionediastolica
-                + Atrialesnspessoregrassoinmm
-                , 
-                family = binomial(), data = dset.ana.complete)
-
-sel.model <- full.model %>% stepAIC(trace = FALSE)
-
-summary(sel.model)
-
-confint(sel.model)
-
-# BASE R
-
-sel.model <- step(full.model)
-
-summary(sel.model)
-
-confint(sel.model)
-
-# TABLE
-
-or=(exp(cbind("Odds ratio" = coef(sel.model), confint.default(sel.model))))
-
-multi.3<-data.frame(
-  
-  #names(logi.fit$coefficients),
-  OR=round(or[1:dim(or)[1],1],3),
-  CI95=paste0(round(or[1:dim(or)[1],2],3)," - " ,round(or[1:dim(or)[1],3],3)),
-  p=round(summary(sel.model)$coefficients[1:dim(summary(sel.model)$coefficients)[1],4] , 3)
-  
-)
-
-# OUT
-
-write.csv2(multi.3, file=paste0(outdir, "/", "multi.3.csv"), row.names = T)
-
-
-
-
-
-## MODEL 4 ----
-
-# ETA
-# IPOTIROIDISMO 
-# PAPsmmHg
-# SPLENECTOMIA, 
-# Volumetelesistolicoatrialesinistroindicizzatomlm2
-# Funzionediastolica (REF = NORMALE)
-# Atrialesnspessoregrassoinmm
-
-# dset.ana.complete<-dset.ana[complete.cases(dset.ana[, c(1, 16, 121, 28, 38, 111, 122, 162)]), 
-#                            c(1, 16,121, 28, 38, 111, 122, 162)]
-
-# MASS
-
-# full.model<-glm(FA ~ Eta
-#                 + Ipotiroidismo 
-#                 
-#                 + Splenectomia
-#                 + Volumetelesistolicoatrialesinistroindicizzatomlm2
-#                 + Funzionediastolica
-#                 + Atrialesnspessoregrassoinmm
-#                 , 
-#                 family = binomial(), data = dset.ana.complete)
 
 dset.ana.complete<-dset.ana[, c(1, 16, 28, 38, 111, 122, 162)]
 
@@ -293,7 +84,6 @@ cc=complete.cases(dset.ana.complete)
 
 dset.ana.complete<-dset.ana.complete[cc, ]
                                                        
-
 full.model<-glm(FA ~ Eta
                 + Ipotiroidismo 
                 + Splenectomia
@@ -303,13 +93,15 @@ full.model<-glm(FA ~ Eta
                 , 
                 family = binomial(), data = dset.ana.complete)
 
-sel.model <- full.model %>% stepAIC(trace = FALSE)
+## MASS
+
+sel.model <- full.model %>% stepAIC(trace = TRUE)
 
 summary(sel.model)
 
 confint(sel.model)
 
-# BASE R
+## BASE R
 
 sel.model <- step(full.model)
 
@@ -317,35 +109,35 @@ summary(sel.model)
 
 confint(sel.model)
 
-# TABLE
+## OUTPUT TABLE
 
 or=(exp(cbind("Odds ratio" = coef(sel.model), confint.default(sel.model))))
 
 multi.4<-data.frame(
   
-  #names(logi.fit$coefficients),
   OR=round(or[1:dim(or)[1],1],3),
   CI95=paste0(round(or[1:dim(or)[1],2],3)," - " ,round(or[1:dim(or)[1],3],3)),
   p=round(summary(sel.model)$coefficients[1:dim(summary(sel.model)$coefficients)[1],4] , 3)
   
 )
 
-# TEST MODELLO 
-# pvalue = 1 - pchisq(78.161 - 52.304, 70 - 67)
+## TEST MODELLO 
+## pvalue = 1 - pchisq(78.161 - 52.304, 70 - 67)
 
 # OUT
 
-write.csv2(multi.4, file=paste0(outdir, "/", "multi.4.01.csv"), row.names = T)
+write.csv2(multi.4, file=paste0(outdir, "/", "multi.00.csv"), row.names = T)
 
 # ROC ---- 
+
 library(pROC)
 library(verification)
 
-#### pROC ###
+## pROC
 
-# RICHIEDE IN INPUT OBS (binary), PRED (PROB [0,1])
+## INPUT OBS (binary), PRED (PROB [0,1])
 
-# un predittore
+## un predittore
 
 uni.model<-glm(FA ~ 
                  Atrialesnspessoregrassoinmm
@@ -361,12 +153,14 @@ robj<-pROC::roc(obs ~ predict(uni.model, type = "response"),
                 plot = T, smooth = F, auc = T, ci = T)
 robj
 
-### stat
+## stat
 
 stats <- wilcox.test(resp[obs == 1], resp[obs == 0], alternative = "great")
 stats
 
-# modello multivariabile
+## modello multivariabile
+
+## MODEL SELECTED IN PREVIOUS STEP = sel.model 
 
 obs=as.numeric(levels(dset.ana.complete$FA))[dset.ana.complete$FA]
 resp=predict(sel.model, type = "response")
@@ -376,20 +170,16 @@ robj<-pROC::roc(obs, predict(sel.model, type = "response"),
 
 robj
 
-### stat
+## stat
 
 stats <- wilcox.test(resp[obs == 1], resp[obs == 0], alternative = "great")
 stats
 
-#### verification ###
+## verification 
 
-# RICHIEDE IN INPUT OBS (binary), PRED (PROB [0,1])
+# INPUT OBS (binary), PRED (PROB [0,1])
 
-
-# un predittore
-
- # Binary indicator
- # dset.ana.complete$arbin<-ifelse(dset.ana.complete$Atrialesnspessoregrassoinmm>=4.1,1,0)
+## un predittore
 
 uni.model<-glm(FA ~ 
                 
@@ -405,16 +195,20 @@ resp=predict(uni.model, type = "response")
 roc.area(obs, 
          predict(uni.model, type = "response"))
 
-# modello multivariabile
+## modello multivariabile
+
+## MODEL SELECTED IN PREVIOUS STEP = sel.model 
 
 obs=as.numeric(levels(dset.ana.complete$FA))[dset.ana.complete$FA]
 resp=predict(sel.model, type = "response")
 
 roc.area(obs, predict(sel.model, type = "response"))
 
-# CUT OFF 
+# CUT OFF ----
 
 library(cutpointr)
+
+## INPUT OUTCOME BINARY VARIABLE AS NUMERIC
 
 dset.ana.complete$fFA<-as.numeric(levels(dset.ana.complete$FA))[dset.ana.complete$FA]
 
@@ -424,17 +218,18 @@ cp
 plot(cp)
 
 # NOTE: ----
+
 # rocarea function
 
 
-  id <- is.finite(obs) & is.finite(resp)
-  obs <- obs[id]
-  pred <- resp[id]
-  n1 <- sum(obs)
-  n <- length(obs)
-  A.tilda <- (mean(rank(pred)[obs == 1]) - (n1 + 1)/2)/(n - 
-                                                          n1)
-  stats <- wilcox.test(pred[obs == 1], pred[obs == 0], alternative = "great")
-  return(list(A = A.tilda, n.total = n, n.events = n1, 
-              n.noevents = sum(obs == 0), p.value = stats$p.value))
+# id <- is.finite(obs) & is.finite(resp)
+# obs <- obs[id]
+# pred <- resp[id]
+# n1 <- sum(obs)
+# n <- length(obs)
+# A.tilda <- (mean(rank(pred)[obs == 1]) - (n1 + 1)/2)/(n - 
+#                                                         n1)
+# stats <- wilcox.test(pred[obs == 1], pred[obs == 0], alternative = "great")
+# return(list(A = A.tilda, n.total = n, n.events = n1, 
+#             n.noevents = sum(obs == 0), p.value = stats$p.value))
 
