@@ -22,6 +22,8 @@
 #
 #     info@manfrinistudio.it
 
+rm(list = ls())
+
 # Source ---------------------------------------------
 source("/Users/mmanfrini/Code/rbiostatfunbox/rbiostatfunbox/funbox.R")
 

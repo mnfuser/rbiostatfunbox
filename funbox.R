@@ -236,7 +236,9 @@ applyCharacter<-function(x, c){
     return(x)
   } else {
     for(i in 1:length(c)){
-      x[,c[i]]<-as.character(x[,c[i]])  
+      tryCatch(
+        x[,c[i]]<-as.character(x[,c[i]])
+        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})
     }  
   }
   return(x)
@@ -248,7 +250,9 @@ applyFactors<-function(x, c){
     return(x)
   } else {
     for(i in 1:length(c)){
-      x[,c[i]]<-as.factor(x[,c[i]])  
+      tryCatch(
+        x[,c[i]]<-as.factor(x[,c[i]]) 
+        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})
     }  
   }
   return(x)
@@ -260,7 +264,9 @@ applyOrdered<-function(x, c){
     return(x)
   } else {
     for(i in 1:length(c)){
-      x[,c[i]]<-as.ordered(x[,c[i]])  
+      tryCatch(
+        x[,c[i]]<-as.ordered(x[,c[i]])
+        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})
     }  
   }
   return(x)
@@ -274,7 +280,7 @@ applyNumeric<-function(x, c){
     for(i in 1:length(c)){
       tryCatch(
         x[,c[i]]<-as.numeric(x[,c[i]])
-        , warning=function(w){print(paste0("Warning on column: ", i))})
+        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})
     }  
   }
   return(x)
@@ -286,7 +292,9 @@ applyInteger<-function(x, c){
     return(x)
   } else {
     for(i in 1:length(c)){
-      x[,c[i]]<-as.integer(x[,c[i]])  
+      tryCatch(
+        x[,c[i]]<-as.integer(x[,c[i]])
+        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})
     }  
   }
   return(x)
@@ -298,7 +306,9 @@ applyLogical<-function(x, c){
     return(x)
   } else {
     for(i in 1:length(c)){
-      x[,c[i]]<-as.logical(x[,c[i]])  
+      tryCatch(
+        x[,c[i]]<-as.logical(x[,c[i]])
+        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})
     }  
   }
   return(x)
@@ -306,16 +316,17 @@ applyLogical<-function(x, c){
 
 # applyDate ----
 applyDate<-function(x, c, f){
-  # f=format
   # f=1->"%d/%m/%Y"
   # f=2->"%Y-%m-%d"
   if(missing(c)){
     return(x)
   } else {
     for(i in 1:length(c)){
-      ifelse(f==1,
+      tryCatch(
+        ifelse(f==1,
              x[,c[i]]<-dmy(x[,c[i]]),
              x[,c[i]]<-ymd(x[,c[i]]))
+        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})      
     }  
   }
   return(x)
