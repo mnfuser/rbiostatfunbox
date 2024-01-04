@@ -37,7 +37,7 @@ outdir=paste0(wd,"/preprocess")
 # LOAD DATASET ----
 
 dset <- read.csv2(paste0(indir,"/dataset.csv"),
-                    stringsAsFactors=T)
+                    stringsAsFactors=F)
 View(dset)
 
 # Load dataset dictionary file
@@ -45,6 +45,10 @@ View(dset)
 ddf<-read.csv2(paste0(indir,"/data_dictionary.csv"),
               stringsAsFactors=T)
 View(ddf)
+
+# Removing all blank strings ----
+
+dset<-as.data.frame(apply(dset, 2, function(x)gsub('\\s+', '',x)))
 
 # SET VAR TYPE ----
 
@@ -74,6 +78,11 @@ if(length(integerList)>0){
 } else {
   print("No integer vars")
 }
+if(length(stringList)>0){
+  dset <- applyCharacter(dset, stringList)
+} else {
+  print("No numeric vars")
+}
 if(length(factorList)>0){
   dset <- applyFactors(dset, factorList)
 } else {
@@ -95,7 +104,7 @@ if(length(dates)>0){
   print("No date vars")
 }
 
-
+View(dset)
 
 # QC PLOTS RAW ----
 
@@ -148,15 +157,13 @@ if(length(integerList)>0){
 }
 
 # missing
-nm<-nmiss(dset)
-nm$vars<-as.factor(rownames(nm))
-
+nm<-nmiss2(dset, ddf)
 
 pdf(file=paste0(outdir, "/missing.pdf"), height = 0.3*dim(nm)[1], width = 20)
 
 nm %>%
   arrange(desc(pm)) %>%
-  mutate(vars = factor(vars, unique(vars))) %>%
+  mutate(vars = factor(VAR, unique(VAR))) %>%
   ggplot() +
   aes(x=vars, y=pm) +
   geom_segment( aes(x=vars, xend=vars, y=0, yend=pm), color="skyblue") +

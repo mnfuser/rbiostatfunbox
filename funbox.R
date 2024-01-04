@@ -76,17 +76,66 @@ nmiss<-function(dset, colrange, fileName){
             }
             ,2)
   # data type
-  cm<-as.matrix(sapply(dset, class))
+  VARTYPE<-as.matrix(sapply(dset, class))
   # regressor
-  rg<-rep(0, dim(dset)[2])
+  regs<-rep(0, dim(dset)[2])
   # outcome
-  oc<-rep(0, dim(dset)[2])
+  outc<-rep(0, dim(dset)[2])
+  # used
+  used<-rep(0, dim(dset)[2])
   # position in the dataset
   id<-seq(1:dim(dset)[2])
   if(!missing(fileName)){
-    write.csv2(data.frame(id=id,nm=nm,pm=pm,vm=vm,type=cm,rg=rg,oc=oc), file=fileName)  
+    write.csv2(data.frame(id=id,nm=nm,pm=pm,vm=vm,VARTYPE=VARTYPE,regs=regs,outc=outc,used=used), file=fileName)  
   }
-  return(data.frame(id=id,nm=nm, pm=pm,vm=vm,cm=cm,rg=rg,oc=oc))
+  return(data.frame(id=id,nm=nm, pm=pm,vm=vm,VARTYPE=VARTYPE,regs=regs,outc=outc,used=used))
+}
+
+# nmiss2 ----
+# INPUT: dataset, columns range
+# OUTPUT: na for each var in colrange
+nmiss2<-function(dset, ddf, colrange, fileName){
+  # missing
+  nm<-apply(dset[, colrange], 
+            FUN = function(x){
+              length(which(is.na(x)))
+            }
+            ,2)
+  # missing percent
+  pm<-apply(dset[, colrange], 
+            FUN = function(x){
+              length(which(is.na(x)))/dim(dset)[1]
+            }
+            ,2)
+  # unique values or constant
+  vm<-apply(dset[, colrange], 
+            FUN = function(x){
+              l=length(unique(x))
+              ifelse(l>1,l,"CONST")
+            }
+            ,2)
+  # regressor
+  regs<-rep(0, dim(dset)[2])
+  # outcome
+  outc<-rep(0, dim(dset)[2])
+  # used
+  used<-rep(1, dim(dset)[2])
+  
+  #u pdate ddf
+  ddf.updated<-cbind(ddf[,c(1:3)],
+                     nm,
+                     pm,
+                     vm,
+                     regs,
+                     outc,
+                     used)
+  
+  # write ddf
+  
+  if(!missing(fileName)){
+    write.csv2(ddf.updated, file=fileName)  
+  }
+  return(ddf.updated)
 }
 
 # applyFactors ----
