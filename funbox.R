@@ -121,7 +121,7 @@ nmiss2<-function(dset, ddf, colrange, fileName){
   # used
   used<-rep(1, dim(dset)[2])
   
-  #u pdate ddf
+  #update ddf
   ddf.updated<-cbind(ddf[,c(1:3)],
                      nm,
                      pm,
