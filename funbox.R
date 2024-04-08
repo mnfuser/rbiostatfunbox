@@ -1,37 +1,20 @@
-# Libraries -----------------------------------------------
+# Packages ----
 
-# library(epitools)
+
 library(survival)
 library(survminer)
-#library(RcmdrPlugin.EZR)
-# library(MatchIt)
-# library(cobalt)
 library(knitr)
- library(rms)
- library(tidyverse)
- library(lubridate)
- library(tableone)
-# library(lsmeans)
-# library(arm)
-# library(grid)
-# library(ggpubr)
-# library(ggrepel)
+library(rms)
+library(tidyverse)
+library(lubridate)
+library(tableone)
 library(visdat)
- library(corrplot)
-# library(RColorBrewer)
-# library(survMisc)
-# library(survivalROC)
-# library(ROCR)
-# library(plotROC)
-# library(survIDINRI)
-# library(nricens)
-# library(mice)
-# library(fastDummies)
+library(corrplot)
 
-
-# setVarType --------------------------------------------
-# INPUT: file with var type description
-# OUTPUT: lists of types
+# readVarType ----
+# @description: read a file with variables names and types 
+# @param filename: file with var type description
+# @return: lists of position indexes by types
 
 characterList<-NULL
 dates<-NULL
@@ -41,7 +24,7 @@ numericList<-NULL
 integerList<-NULL
 logicalList<-NULL
 
-setVarType<-function(fileName){
+readVarType<-function(fileName){
   varType<-read.csv2(fileName)
   characterList<<-which(varType$type=="c" | varType$type=="character")
   dates<<-which(varType$type=="d" | varType$type=="date")
@@ -52,10 +35,69 @@ setVarType<-function(fileName){
   logicalList<<-which(varType$type=="l" | varType$type=="logical")
 }
 
+# applyVarType ----
+# @description: Apply types to the avriables of the dataset
+# @param dset: dataset
+# @param characterList: list of the positional indexes of character vriables
+# @param factorList: list of the positional indexes of factor vriables
+# @param orderedList: list of the positional indexes of ordered vriables
+# @param numericList: list of the positional indexes of numeric vriables
+# @param integerList: list of the positional indexes of integer vriables
+# @param logicalList: list of the positional indexes of logical vriables
+# @param dateList: list of the positional indexes of date vriables
+# @param dateFormt: string format of date variables default to "%d/%m/%Y"
+# @return dataset updated
+applyVarType<-function(characterList=NULL, 
+                       factorList=NULL, 
+                       orderedList=NULL, 
+                       numericList=NULL, 
+                       integerList=NULL, 
+                       logicalList=NULL, 
+                       dateList=NULL, 
+                       dateFormt="%d/%m/%Y"){
+  
+  if(!is.null(numericList) &  length(numericList)>0){
+    dset <- applyNumeric(dset, numericList)
+  } else {
+    print("No numeric vars")
+  }
+  if(!is.null(integerList) & length(integerList)>0){
+    dset <- applyInteger(dset, integerList)
+  } else {
+    print("No integer vars")
+  }
+  if(!is.null(factorList) & length(factorList)>0){
+    dset <- applyFactors(dset, factorList)
+  } else {
+    print("No factor vars")
+  }
+  if(!is.null(orderedList) & length(orderedList)>0){
+    dset <- applyOrdered(dset, orderedList)
+  } else {
+    print("No ordered vars")
+  }
+  if(!is.null(logicalList) & length(logicalList)>0){
+    dset <- applyLogical(dset, logicalList)
+  } else {
+    print("No logical vars")
+  }
+  if(!is.null(dateList) & length(dateList)>0){
+    dset <- applyDate(dset, dates, "%d/%m/%Y")
+  } else {
+    print("No date vars")
+  }
+  
+  return(dset)
+  
+}
+
 # nmiss ----
-# INPUT: dataset, columns range
-# OUTPUT: na for each var in colrange
+# @param dataset: dataset, 
+# @ param columns range: columns range
+# @return metadata: number of missing for each var in colrange
 nmiss<-function(dset, colrange, fileName){
+  # vars names
+  varNames=colnames(dset)
   # missing
   nm<-apply(dset[, colrange], 
             FUN = function(x){
@@ -76,68 +118,34 @@ nmiss<-function(dset, colrange, fileName){
             }
             ,2)
   # data type
-  VARTYPE<-as.matrix(sapply(dset, class))
-  # regressor
-  regs<-rep(0, dim(dset)[2])
-  # outcome
-  outc<-rep(0, dim(dset)[2])
-  # used
-  used<-rep(0, dim(dset)[2])
+  vartype<-as.matrix(sapply(dset, class))
+  
+  # zeros vector
+  v0<-rep(0, dim(dset)[2])
+  
+  # var names
+  cn<-colnames(dset)
+  
   # position in the dataset
   id<-seq(1:dim(dset)[2])
+  
+  # metadata 
+  metaData<-data.frame(
+    id=id,
+    varname=cn,
+    numberMissing=nm,
+    percentMIssing=pm,
+    uniqueValues=vm,
+    regs=v0,
+    outc=v0,
+    conf=v0,
+    exp=v0,
+    descr=v0)
   if(!missing(fileName)){
-    write.csv2(data.frame(id=id,nm=nm,pm=pm,vm=vm,VARTYPE=VARTYPE,regs=regs,outc=outc,used=used), file=fileName)  
+    write.csv2(metaData, file=fileName, row.names = F)  
   }
-  return(data.frame(id=id,nm=nm, pm=pm,vm=vm,VARTYPE=VARTYPE,regs=regs,outc=outc,used=used))
+  return(metaData)
 }
-
-# nmiss2 ----
-# INPUT: dataset, columns range
-# OUTPUT: na for each var in colrange
-nmiss2<-function(dset, ddf, colrange, fileName){
-  # missing
-  nm<-apply(dset[, colrange], 
-            FUN = function(x){
-              length(which(is.na(x)))
-            }
-            ,2)
-  # missing percent
-  pm<-apply(dset[, colrange], 
-            FUN = function(x){
-              length(which(is.na(x)))/dim(dset)[1]
-            }
-            ,2)
-  # unique values or constant
-  vm<-apply(dset[, colrange], 
-            FUN = function(x){
-              l=length(unique(x))
-              ifelse(l>1,l,"CONST")
-            }
-            ,2)
-  # regressor
-  regs<-rep(0, dim(dset)[2])
-  # outcome
-  outc<-rep(0, dim(dset)[2])
-  # used
-  used<-rep(1, dim(dset)[2])
-  
-  #update ddf
-  ddf.updated<-cbind(ddf[,c(1:3)],
-                     nm,
-                     pm,
-                     vm,
-                     regs,
-                     outc,
-                     used)
-  
-  # write ddf
-  
-  if(!missing(fileName)){
-    write.csv2(ddf.updated, file=fileName)  
-  }
-  return(ddf.updated)
-}
-
 # applyFactors ----
 applyFactors<-function(x, c){
   if(missing(c)){
