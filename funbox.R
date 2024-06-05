@@ -134,7 +134,7 @@ nmiss<-function(dset, colrange, fileName){
     id=id,
     varname=cn,
     numberMissing=nm,
-    percentMIssing=pm,
+    percentMissing=pm,
     uniqueValues=vm,
     regs=v0,
     outc=v0,
