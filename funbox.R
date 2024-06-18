@@ -134,7 +134,8 @@ nmiss<-function(dset, colrange, fileName){
   # metadata 
   metaData<-data.frame(
     id=id,
-    varname=cn,
+    varName=cn,
+    varType=vartype,
     numberMissing=nm,
     percentMissing=pm,
     uniqueValues=vm,
