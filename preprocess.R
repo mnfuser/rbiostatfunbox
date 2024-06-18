@@ -1,4 +1,4 @@
-# PRE-PROCESSING v4
+# PRE-PROCESSING
 
 rm(list=ls())
 
@@ -17,8 +17,8 @@ outdir=paste0(wd,"/preprocess")
 
 # GLOBAL VARS ----
 # LOAD DATASET RAW ----
-dset <- read.csv2(paste0(indir,"/dataset.csv"),
-                    stringsAsFactors=T)
+dset <- read_csv2(paste0(indir,"/dataset.csv"))
+problems()
 View(dset)
 
 # SET VARTYPE ----
@@ -34,7 +34,11 @@ View(varclass)
 
 ## Apply vartype
 readVarType(paste0(indir, "/vartype.csv"))
-apllyVarType(integerList)
+dset<-applyVarType(dset, 
+                   nList = numericList, 
+                   cList = characterList, 
+                   fList = factorList)
+as.matrix(sapply(dset, class))
 
 # OUTLIERS CORRECTION ----
 
@@ -46,11 +50,6 @@ for(i in numericList){
 # RECODE / BUILD NEW VARS ----
 
 ## New vars
-
-dset$vitc_postop_gtoreq_23<-ifelse(dset$Vitamin.C..Post.op.>22,1,0)
-dset$vitc_postop_ltoreq_23<-ifelse(dset$Vitamin.C..Post.op.<24,1,0)
-dset$vitc_delta_perc<-(dset$Vitamin.C..Post.op.-dset$Vitamin.C..Pre.op.)/dset$Vitamin.C..Pre.op.*100
-dset$vitc_delta_perc_gtoreq_50<-ifelse(dset$vitc_delta_perc<(-49),1,0)
 
 ## CENSORING SETTINGS
 # QC PLOTS ----
@@ -96,11 +95,11 @@ nm$vars<-as.factor(rownames(nm))
 pdf(file=paste0(outdir, "/missing.pdf"), height = 0.3*dim(nm)[1], width = 20)
 
 nm %>%
-  arrange(desc(pm)) %>%
-  mutate(vars = factor(vars, unique(vars))) %>%
+  arrange(desc(percentMissing)) %>%
+  mutate(vars = factor(varname, unique(varname))) %>%
   ggplot() +
-  aes(x=vars, y=pm) +
-  geom_segment( aes(x=vars, xend=vars, y=0, yend=pm), color="skyblue") +
+  aes(x=vars, y=percentMissing) +
+  geom_segment( aes(x=vars, xend=vars, y=0, yend=percentMissing), color="skyblue") +
   geom_point( color="blue", size=2, alpha=0.6) +
   #geom_text(aes(label = round(pm),2), hjust = 1, size = 3) +
   theme_light() +
@@ -119,9 +118,8 @@ dev.off()
 
 # DATASET METADATA ----
 
-nm<-nmiss(dset, fileName = paste0(outdir,"/nm.dset.csv"))
+nm<-nmiss(dset, fileName = paste0(outdir,"/meta.csv"))
 
 # WRITE OUT DATASET ----
 
 write.csv2(dset, file=paste0(outdir,"/dset.ana.csv"), row.names = F)
-write.csv2(nm, file=paste0(outdir,"/nm.dset.ana.filtered.csv"), row.names = F)
