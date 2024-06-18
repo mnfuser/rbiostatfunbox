@@ -47,47 +47,49 @@ readVarType<-function(fileName){
 # @param dateList: list of the positional indexes of date vriables
 # @param dateFormt: string format of date variables default to "%d/%m/%Y"
 # @return dataset updated
-applyVarType<-function(characterList=NULL, 
-                       factorList=NULL, 
-                       orderedList=NULL, 
-                       numericList=NULL, 
-                       integerList=NULL, 
-                       logicalList=NULL, 
-                       dateList=NULL, 
+applyVarType<-function(ds,
+                       cList, 
+                       fList, 
+                       oList, 
+                       nList, 
+                       iList, 
+                       lList, 
+                       dList, 
                        dateFormt="%d/%m/%Y"){
   
-  if(!is.null(numericList) &  length(numericList)>0){
-    dset <- applyNumeric(dset, numericList)
+  if(!missing("nList")){
+    ds <- ds %>% mutate_at(nList, as.numeric)
   } else {
     print("No numeric vars")
   }
-  if(!is.null(integerList) & length(integerList)>0){
-    dset <- applyInteger(dset, integerList)
+  if(!missing("iList")){
+    ds <- ds %>% mutate_at(iList, as.integer)
   } else {
     print("No integer vars")
   }
-  if(!is.null(factorList) & length(factorList)>0){
-    dset <- applyFactors(dset, factorList)
+  if(!missing("fList")){
+    ds <- ds %>% mutate_at(fList, as.factor)
   } else {
     print("No factor vars")
   }
-  if(!is.null(orderedList) & length(orderedList)>0){
-    dset <- applyOrdered(dset, orderedList)
+  if(!missing("oList")){
+    ds <- ds %>% mutate_at(oList, as.ordered)
   } else {
     print("No ordered vars")
   }
-  if(!is.null(logicalList) & length(logicalList)>0){
-    dset <- applyLogical(dset, logicalList)
+  if(!missing("lList")){
+    ds <- ds %>% mutate_at(lList, as.logical)
   } else {
     print("No logical vars")
   }
-  if(!is.null(dateList) & length(dateList)>0){
-    dset <- applyDate(dset, dates, "%d/%m/%Y")
+  if(!missing("dList")){
+    if(f=="%d/%m/%Y") ds <- ds %>% mutate_at(dList, dmy)
+    if(f=="%Y-%m-%d") ds <- ds %>% mutate_at(dList, ymd)
   } else {
     print("No date vars")
   }
   
-  return(dset)
+  return(ds)
   
 }
 
@@ -151,9 +153,7 @@ applyFactors<-function(x, c){
   if(missing(c)){
     return(x)
   } else {
-    for(i in 1:length(c)){
-      x[,c[i]]<-as.factor(x[,c[i]])  
-    }  
+    x <- x %>% mutate_at(c, as.factor)
   }
   return(x)
 }
@@ -292,25 +292,7 @@ applyCharacter<-function(x, c){
   if(missing(c)){
     return(x)
   } else {
-    for(i in 1:length(c)){
-      tryCatch(
-        x[,c[i]]<-as.character(x[,c[i]])
-        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})
-    }  
-  }
-  return(x)
-}
-
-# applyFactors ----
-applyFactors<-function(x, c){
-  if(missing(c)){
-    return(x)
-  } else {
-    for(i in 1:length(c)){
-      tryCatch(
-        x[,c[i]]<-as.factor(x[,c[i]]) 
-        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})
-    }  
+    x <- x %>% mutate_at(c, as.character)
   }
   return(x)
 }
@@ -320,11 +302,7 @@ applyOrdered<-function(x, c){
   if(missing(c)){
     return(x)
   } else {
-    for(i in 1:length(c)){
-      tryCatch(
-        x[,c[i]]<-as.ordered(x[,c[i]])
-        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})
-    }  
+    x <- x %>% mutate_at(c, as.ordered) 
   }
   return(x)
 }
@@ -334,11 +312,7 @@ applyNumeric<-function(x, c){
   if(missing(c)){
     return(x)
   } else {
-    for(i in 1:length(c)){
-      tryCatch(
-        x[,c[i]]<-as.numeric(x[,c[i]])
-        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})
-    }  
+    x <- x %>% mutate_at(c, as.numeric)  
   }
   return(x)
 }
@@ -348,11 +322,7 @@ applyInteger<-function(x, c){
   if(missing(c)){
     return(x)
   } else {
-    for(i in 1:length(c)){
-      tryCatch(
-        x[,c[i]]<-as.integer(x[,c[i]])
-        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})
-    }  
+    x <- x %>% mutate_at(c, as.integer)  
   }
   return(x)
 }
@@ -362,11 +332,7 @@ applyLogical<-function(x, c){
   if(missing(c)){
     return(x)
   } else {
-    for(i in 1:length(c)){
-      tryCatch(
-        x[,c[i]]<-as.logical(x[,c[i]])
-        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})
-    }  
+    x <- x %>% mutate_at(c, as.logical)
   }
   return(x)
 }
@@ -378,13 +344,9 @@ applyDate<-function(x, c, f){
   if(missing(c)){
     return(x)
   } else {
-    for(i in 1:length(c)){
-      tryCatch(
         ifelse(f==1,
-             x[,c[i]]<-dmy(x[,c[i]]),
-             x[,c[i]]<-ymd(x[,c[i]]))
-        , warning=function(w){print(paste0("Warning on column: ", colnames(x)[c[i]]))})      
-    }  
+               x <- x %>% mutate_at(c, dmy),
+               x <- x %>% mutate_at(c, ymd))
   }
   return(x)
 }
