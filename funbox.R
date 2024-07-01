@@ -35,6 +35,30 @@ readVarType<-function(fileName){
   logicalList<<-which(varType$type=="l" | varType$type=="logical")
 }
 
+# readMetaVarType ----
+# @description: read a metadata file with variables names and types 
+# @param filename: file with var type description
+# @return: lists of position indexes by types
+
+characterList<-NULL
+dates<-NULL
+factorList<-NULL
+orderedList<-NULL
+numericList<-NULL
+integerList<-NULL
+logicalList<-NULL
+
+readMetaVarType<-function(fileName){
+  meta<-read.csv2(fileName)
+  characterList<<-which(meta$varType=="c" | meta$varType=="character")
+  dates<<-which(meta$varType=="d" | meta$varType=="date")
+  factorList<<-which(meta$varType=="f" | meta$varType=="factor")
+  orderedList<<-which(meta$varType=="o" | meta$varType=="ordinal")
+  numericList<<-which(meta$varType=="n" | meta$varType=="numeric")
+  integerList<<-which(meta$varType=="i" | meta$varType=="integer")
+  logicalList<<-which(meta$varType=="l" | meta$varType=="logical")
+}
+
 # applyVarType ----
 # @description: Apply types to the avriables of the dataset
 # @param dset: dataset
