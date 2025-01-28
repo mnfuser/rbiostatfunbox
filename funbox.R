@@ -79,7 +79,7 @@ applyVarType<-function(ds,
                        iList, 
                        lList, 
                        dList, 
-                       dateFormt="%d/%m/%Y"){
+                       dateFormat="%d/%m/%Y"){
   
   if(!missing("nList")){
     ds <- ds %>% mutate_at(nList, as.numeric)
@@ -107,8 +107,8 @@ applyVarType<-function(ds,
     print("No logical vars")
   }
   if(!missing("dList")){
-    if(f=="%d/%m/%Y") ds <- ds %>% mutate_at(dList, dmy)
-    if(f=="%Y-%m-%d") ds <- ds %>% mutate_at(dList, ymd)
+    if(dateFormat=="%d/%m/%Y") ds <- ds %>% mutate_at(dList, dmy)
+    if(dateFormat=="%Y-%m-%d") ds <- ds %>% mutate_at(dList, ymd)
   } else {
     print("No date vars")
   }
