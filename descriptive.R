@@ -37,95 +37,57 @@ outdir=paste0(wd,"/out")
 
 # GLOBAL VARS ----
 
-RAW=F
-
-colrange=c()
-
 # LOAD DATASET PRE PROCESSED ----
 
-if(RAW==F){
-  dset.ana <- read.csv2(paste0(indir,"/dset.ana.csv"),
-                    stringsAsFactors=FALSE) #, na.strings = ""
-}
+dset.ana <- read_csv2(paste0(pcadir,"/dset.ana.cluster.csv"))
+problems()
+View(dset.ana)
 
-# Load dataset descriptor file
-nm<-read.csv2(paste0(indir,"/preprocess/nm.dset.ana.filtered.imputed.csv"),
-              stringsAsFactors=T)
+## READING METADATA 
 
+meta <- read_csv2(paste0(indir,"/meta.cluster.csv"))
+problems()
+View(meta)
 
-# SET VAR TYPE ----
+## SET VAR TYPE
 
-setVarType(paste0(indir, "/preprocess/nm.dset.ana.filtered.imputed.csv"))
+readMetaVarType(paste0(indir, "/meta.cluster.csv"))
+dset.ana<-applyVarType(dset.ana, 
+                       nList = numericList, 
+                       cList = characterList, 
+                       fList = factorList)
+View(dset.ana)
 
+# DESCRIPTIVE STATS ----
 
-if(length(numericList)>0){
-  dset <- applyNumeric(dset, numericList)
-} else {
-  print("No numeric vars")
-}
-if(length(integerList)>0){
-  dset <- applyInteger(dset, integerList)
-} else {
-  print("No integer vars")
-}
-if(length(factorList)>0){
-  dset <- applyFactors(dset, factorList)
-} else {
-  print("No factor vars")
-}
-if(length(orderedList)>0){
-  dset <- applyOrdered(dset, orderedList)
-} else {
-  print("No ordered vars")
-}
-if(length(logicalList)>0){
-  dset <- applyLogical(dset, logicalList)
-} else {
-  print("No logical vars")
-}
-if(length(dates)>0){
-  dset <- applyDate(dset, dates, "%d/%m/%Y")
-} else {
-  print("No date vars")
-}
+## SELECTING VARS
+indexs<-filter(meta, descr==1)|>
+  pull(id)
 
-# VISUALIZE ANALYSIS DATASET
-vis_dat_wrapper(dset.ana)
+dset.descr<-select(dset.ana, all_of(indexs))
 
 # SW NORM TEST ----
-#+ tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 50), echo=FALSE, message=FALSE, warning=FALSE, comment=NA
 
-getNumbersFromDataset(dset.ana)
+getNumbersFromDataset(dset.descr)
 
 sw.table<-NULL
 for(i in numericList){
-    sw<-shapiro.test(dset.ana[,i])
-    sw.table<-rbind(sw.table, cbind(
-      colnames(dset.ana)[i],
-      round(sw$statistic, 3),
-      ifelse(sw$p.value<0.001,"<0.001",round(sw$p.value, 3))
-    ))
+  sw<-shapiro.test(dset.descr[,i])
+  sw.table<-rbind(sw.table, cbind(
+    colnames(dset.descr)[i],
+    round(sw$statistic, 3),
+    ifelse(sw$p.value<0.001,"<0.001",round(sw$p.value, 3))
+  ))
 }
 colnames(sw.table)<-c("Var", "Statistics", "p.value")
 sw.table
 
 pdf(file="QQ.ana.set.pdf", height = 4, width = 4)
 for(i in 1:length(numericList)){
-  qqnorm(dset.ana[, numericList[i]], main=colnames(dset.ana)[numericList[i]], cex.main=0.5)
-  qqline(dset.ana[, numericList[i]])
+  qqnorm(dset.descr[, numericList[i]], main=colnames(dset.descr)[numericList[i]], cex.main=0.5)
+  qqline(dset.descr[, numericList[i]])
 }
 dev.off()
-
-# DESCRIPTIVE STATS  DATASET ----
-#+ tidy=TRUE, tidy.opts = list(blank = FALSE, width.cutoff = 50), echo=FALSE, message=FALSE, warning=FALSE, comment=NA
-
-colrange<-nm[which(nm$rg==1 | nm$oc==1), "id"]
-
-#baseline<-nm[which(nm$rg==1 | nm$oc==1), "id"]
-
-regressorList<-nm[which(nm$rg==1), "id"]
-
-dset.descr<-dset.ana[,colrange]
 
 # CORRELATION ----
 
@@ -324,3 +286,5 @@ tab<-CreateTableOne(vars = colnames(dset.descr),
                     includeNA = FALSE)
 tabMat <- print(tab, quote = FALSE, noSpaces = TRUE, printToggle = TRUE, exact = fact, nonnormal=nnorm)
 write.csv2(tabMat, file=paste0(outdir, "/descriptive.MORTE_HOSP.overall.csv"))
+
+# END ----
